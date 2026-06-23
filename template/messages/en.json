@@ -1,0 +1,93 @@
+{
+  "Nav": {
+    "dashboard": "Dashboard",
+    "projects": "Projects",
+    "settings": "Settings",
+    "menu": "Menu"
+  },
+  "Auth": {
+    "login": "Sign in",
+    "signup": "Sign up",
+    "logout": "Sign out",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "confirmPassword": "Confirm password",
+    "loginTitle": "Welcome back",
+    "loginSubtitle": "Sign in to your account to continue",
+    "signupTitle": "Create your account",
+    "signupSubtitle": "Get started in seconds",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "createAccount": "Sign up",
+    "signIn": "Sign in",
+    "orContinueWith": "or continue with",
+    "forgotPassword": "Forgot password?",
+    "loggingIn": "Signing in...",
+    "signingUp": "Creating account...",
+    "errors": {
+      "invalidCredentials": "Invalid email or password",
+      "emailExists": "This email is already registered",
+      "passwordMismatch": "Passwords do not match",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "invalidEmail": "Invalid email",
+      "nameRequired": "Name is required",
+      "signupFailed": "Failed to create account. Please try again.",
+      "loginFailed": "Failed to sign in. Please try again."
+    }
+  },
+  "Dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to App Name",
+    "subtitle": "Start building something amazing",
+    "stats": {
+      "projects": "Projects",
+      "active": "Active",
+      "completed": "Completed"
+    },
+    "getStarted": "Get started",
+    "recentActivity": "Recent activity",
+    "noActivity": "No activity yet"
+  },
+  "Settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "language": "Language",
+    "account": "Account",
+    "profile": "Profile",
+    "saveChanges": "Save changes",
+    "saved": "Saved successfully"
+  },
+  "Projects": {
+    "title": "Projects",
+    "subtitle": "Manage your projects",
+    "new": "New project",
+    "empty": "No projects yet",
+    "emptyHint": "Create your first project to get started"
+  },
+  "Common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "tryAgain": "Try again",
+    "back": "Back",
+    "home": "Home"
+  },
+  "NotFound": {
+    "title": "Page not found",
+    "description": "The page you're looking for doesn't exist or has been moved.",
+    "goHome": "Go home"
+  },
+  "Error": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. Please try again.",
+    "tryAgain": "Try again"
+  }
+}

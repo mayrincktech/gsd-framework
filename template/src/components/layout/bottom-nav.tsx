@@ -1,40 +1,38 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/navigation";
 import { LayoutDashboard, FolderKanban, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "Home", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/" as const, icon: LayoutDashboard, key: "dashboard" as const },
+  { href: "/projects" as const, icon: FolderKanban, key: "projects" as const },
+  { href: "/settings" as const, icon: Settings, key: "settings" as const },
 ];
 
 export function BottomNav() {
+  const t = useTranslations("Nav");
   const pathname = usePathname();
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t bg-card pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-around h-14">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="text-[10px] font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-14 items-center justify-around border-t bg-background md:hidden">
+      {navItems.map((item) => {
+        const isActive = pathname === item.href;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex flex-col items-center gap-1 px-3 py-1.5 text-xs transition-colors",
+              isActive ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <item.icon className="size-5" />
+            {t(item.key)}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

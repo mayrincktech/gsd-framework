@@ -1,100 +1,91 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, FolderKanban, Settings, Menu } from "lucide-react";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/navigation";
+import { signOut, useSession } from "next-auth/react";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Settings,
+  LogOut,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ThemeToggle } from "./theme-toggle";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/" as const, icon: LayoutDashboard, key: "dashboard" as const },
+  { href: "/projects" as const, icon: FolderKanban, key: "projects" as const },
+  { href: "/settings" as const, icon: Settings, key: "settings" as const },
 ];
 
 export function Sidebar() {
+  const t = useTranslations("Nav");
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const { data: session } = useSession();
+
+  const initials = session?.user?.name
+    ?.split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("") ?? "?";
 
   return (
-    <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 flex-col border-r bg-card h-screen sticky top-0">
-        <div className="flex h-16 items-center gap-2 border-b px-6">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-            A
-          </div>
-          <span className="font-semibold text-lg">App Name</span>
-        </div>
-        <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
-
-      {/* Mobile header with menu */}
-      <div className="lg:hidden sticky top-0 z-40 flex h-14 items-center justify-between border-b bg-card px-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
-            A
-          </div>
-          <span className="font-semibold">App Name</span>
-        </div>
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger render={
-            <Button variant="ghost" size="icon" className="h-9 w-9">
-              <Menu className="h-5 w-5" />
-            </Button>
-          } />
-          <SheetContent side="left" className="w-64 p-0">
-            <SheetTitle className="sr-only">Navigation</SheetTitle>
-            <div className="flex h-16 items-center gap-2 border-b px-6">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-                A
-              </div>
-              <span className="font-semibold text-lg">App Name</span>
-            </div>
-            <nav className="space-y-1 p-3">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </SheetContent>
-        </Sheet>
+    <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar md:flex">
+      {/* Logo */}
+      <div className="flex h-16 items-center px-6">
+        <span className="text-lg font-semibold">App Name</span>
       </div>
-    </>
+
+      {/* Nav */}
+      <nav className="flex-1 space-y-1 px-3 py-4">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+              )}
+            >
+              <item.icon className="size-4" />
+              {t(item.key)}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Footer: user + actions */}
+      <div className="border-t p-3">
+        <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+          <Avatar className="size-8">
+            <AvatarImage src={session?.user?.image || undefined} />
+            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">
+              {session?.user?.name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {session?.user?.email}
+            </p>
+          </div>
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => signOut()}
+            aria-label="Sign out"
+          >
+            <LogOut className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </aside>
   );
 }

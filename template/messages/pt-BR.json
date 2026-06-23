@@ -1,0 +1,93 @@
+{
+  "Nav": {
+    "dashboard": "Dashboard",
+    "projects": "Projetos",
+    "settings": "Configurações",
+    "menu": "Menu"
+  },
+  "Auth": {
+    "login": "Entrar",
+    "signup": "Criar conta",
+    "logout": "Sair",
+    "email": "E-mail",
+    "password": "Senha",
+    "name": "Nome",
+    "confirmPassword": "Confirmar senha",
+    "loginTitle": "Bem-vindo de volta",
+    "loginSubtitle": "Entre na sua conta para continuar",
+    "signupTitle": "Criar sua conta",
+    "signupSubtitle": "Comece a usar em segundos",
+    "noAccount": "Não tem uma conta?",
+    "hasAccount": "Já tem uma conta?",
+    "createAccount": "Criar conta",
+    "signIn": "Entrar",
+    "orContinueWith": "ou continue com",
+    "forgotPassword": "Esqueceu a senha?",
+    "loggingIn": "Entrando...",
+    "signingUp": "Criando conta...",
+    "errors": {
+      "invalidCredentials": "E-mail ou senha incorretos",
+      "emailExists": "Este e-mail já está cadastrado",
+      "passwordMismatch": "As senhas não coincidem",
+      "passwordTooShort": "A senha deve ter pelo menos 8 caracteres",
+      "invalidEmail": "E-mail inválido",
+      "nameRequired": "Nome é obrigatório",
+      "signupFailed": "Erro ao criar conta. Tente novamente.",
+      "loginFailed": "Erro ao entrar. Tente novamente."
+    }
+  },
+  "Dashboard": {
+    "title": "Dashboard",
+    "welcome": "Bem-vindo ao App Name",
+    "subtitle": "Comece a construir algo incrível",
+    "stats": {
+      "projects": "Projetos",
+      "active": "Ativos",
+      "completed": "Concluídos"
+    },
+    "getStarted": "Começar",
+    "recentActivity": "Atividade recente",
+    "noActivity": "Nenhuma atividade ainda"
+  },
+  "Settings": {
+    "title": "Configurações",
+    "appearance": "Aparência",
+    "theme": "Tema",
+    "light": "Claro",
+    "dark": "Escuro",
+    "system": "Sistema",
+    "language": "Idioma",
+    "account": "Conta",
+    "profile": "Perfil",
+    "saveChanges": "Salvar alterações",
+    "saved": "Salvo com sucesso"
+  },
+  "Projects": {
+    "title": "Projetos",
+    "subtitle": "Gerencie seus projetos",
+    "new": "Novo projeto",
+    "empty": "Nenhum projeto ainda",
+    "emptyHint": "Crie seu primeiro projeto para começar"
+  },
+  "Common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "edit": "Editar",
+    "loading": "Carregando...",
+    "error": "Algo deu errado",
+    "tryAgain": "Tentar novamente",
+    "back": "Voltar",
+    "home": "Início"
+  },
+  "NotFound": {
+    "title": "Página não encontrada",
+    "description": "A página que você procura não existe ou foi movida.",
+    "goHome": "Ir para o início"
+  },
+  "Error": {
+    "title": "Algo deu errado",
+    "description": "Ocorreu um erro inesperado. Tente novamente.",
+    "tryAgain": "Tentar novamente"
+  }
+}
