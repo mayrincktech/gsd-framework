@@ -73,7 +73,7 @@ export function SignupForm() {
     if (result?.error) {
       setError(t("errors.loginFailed"));
     } else {
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     }
   };

@@ -48,7 +48,7 @@ export function LoginForm() {
     if (result?.error) {
       setError(t("errors.invalidCredentials"));
     } else {
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     }
   };
