@@ -6,9 +6,10 @@ Flow:
   1. COPY TEMPLATE      cp -r template → /home/moises/workspace/{slug}
   2. PERSONALIZE        Replace 'App Name' placeholders, update package.json
   3. GITHUB REPO        Create private repo via `gh` + push code
-  4. VERCEL DEPLOY      Link project → `vercel --prod` → disable Vercel Auth
-  5. NEON DATABASE      CREATE SCHEMA in the existing Neon database
-  6. OUTPUT             Print JSON summary + append to provisioned_apps.json
+  4. NEON DATABASE      Create schema + auth tables (users, accounts, sessions, verification_tokens)
+  5. VERCEL ENV VARS    Set DATABASE_URL + AUTH_SECRET via Vercel API
+  6. VERCEL DEPLOY      Link project → `vercel --prod` → disable Vercel Auth
+  7. OUTPUT             Print JSON summary + append to provisioned_apps.json
 
 Usage:
     python3 provision_app.py \
@@ -26,6 +27,7 @@ import argparse
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -37,6 +39,8 @@ from pathlib import Path
 WORKSPACE = Path("/home/moises/workspace")
 GSD_HUB = WORKSPACE / "gsd-hub"
 GITHUB_ORG = "mayrincktech"
+GITHUB_EMAIL = "lucronaconfeitaria@gmail.com"  # Must match Vercel account email
+GITHUB_NAME = "Moises Mayrinck"
 ENV_FILE = Path.home() / ".hermes" / ".env"
 VERCEL_TOKEN_FILE = Path("/tmp/.vercel_tok")
 DATA_FILE = GSD_HUB / "data" / "provisioned_apps.json"
@@ -51,6 +55,48 @@ BINARY_EXTS = {
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".woff", ".woff2",
     ".ttf", ".eot", ".otf", ".pdf", ".zip", ".tar", ".gz", ".lock",
 }
+
+# SQL to create auth tables in the public schema.
+# The Neon HTTP driver (@neondatabase/serverless) does not support ?schema=
+# in the connection string, so tables must be in public.
+AUTH_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id text NOT NULL PRIMARY KEY,
+    name text,
+    email text NOT NULL UNIQUE,
+    email_verified timestamptz,
+    image text,
+    password text
+);
+
+CREATE TABLE IF NOT EXISTS accounts (
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type text NOT NULL,
+    provider text NOT NULL,
+    provider_account_id text NOT NULL,
+    refresh_token text,
+    access_token text,
+    expires_at integer,
+    token_type text,
+    scope text,
+    id_token text,
+    session_state text,
+    PRIMARY KEY (provider, provider_account_id)
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    session_token text NOT NULL PRIMARY KEY,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires timestamptz NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS verification_tokens (
+    identifier text NOT NULL,
+    token text NOT NULL,
+    expires timestamptz NOT NULL,
+    PRIMARY KEY (identifier, token)
+);
+"""
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,10 +118,7 @@ def fail(step: str, msg: str, exc: Exception = None):
 
 
 def run(cmd, cwd=None, env=None, check=True, timeout=600):
-    """Run a shell command string (with nvm sourced) via subprocess.run.
-
-    Always uses capture_output=True, text=True as required.
-    """
+    """Run a shell command string (with nvm sourced) via subprocess.run."""
     full_cmd = f"{NVM_SOURCE} && {cmd}"
     merged_env = dict(os.environ)
     if env:
@@ -118,7 +161,6 @@ def read_env_var(filepath: Path, varname: str) -> str:
         line = line.strip()
         if line.startswith(f"{varname}="):
             val = line.split("=", 1)[1].strip()
-            # strip surrounding quotes if present
             if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
                 val = val[1:-1]
             return val
@@ -175,7 +217,6 @@ def step_copy_template(template_dir: Path, slug: str) -> Path:
     if not template_dir.exists():
         raise StepError(f"Template directory not found: {template_dir}")
 
-    # Idempotent: remove a previous copy so we get a clean template
     if dest.exists():
         log(f"   ℹ  Destination exists, removing stale copy: {dest}")
         shutil.rmtree(dest)
@@ -193,7 +234,6 @@ def step_personalize(app_name: str, slug: str, description: str, dest: Path):
     """Replace 'App Name' placeholders and update package.json."""
     log(f"\n✏️  Step 2: Personalize → '{app_name}'")
 
-    # Walk all text files and replace 'App Name' → app_name
     replaced = 0
     for root, dirs, files in os.walk(dest):
         dirs[:] = [d for d in dirs if d not in TEMPLATE_JUNK]
@@ -226,14 +266,6 @@ def step_personalize(app_name: str, slug: str, description: str, dest: Path):
         except (json.JSONDecodeError, KeyError) as e:
             log(f"   ⚠  Could not update package.json: {e}")
 
-    # Write a .env.example with the DATABASE_URL placeholder
-    env_example = dest / ".env.example"
-    env_example.write_text(
-        f"# {app_name} — environment variables\n"
-        f"DATABASE_URL=your-neon-connection-string-here\n",
-        encoding="utf-8",
-    )
-
 
 # ─── Step 3: GitHub repo ─────────────────────────────────────────────────────
 def step_github_repo(slug: str, description: str, dest: Path,
@@ -248,13 +280,13 @@ def step_github_repo(slug: str, description: str, dest: Path,
     # Ensure git credential helper is set up for HTTPS auth
     run("gh auth setup-git 2>/dev/null || true", env=env, check=False)
 
-    # Init local git + set identity (safety net)
+    # Init local git + set identity (MUST use Vercel-linked email)
     run("git init -q 2>/dev/null || true", cwd=dest, env=env, check=False)
-    run("git config user.name 'Moises Mayrinck' && "
-        "git config user.email 'moises.mayrinck@gmail.com'",
+    run(f"git config user.name '{GITHUB_NAME}' && "
+        f"git config user.email '{GITHUB_EMAIL}'",
         cwd=dest, env=env, check=False)
 
-    # Stage + commit BEFORE creating the repo (so --push has a commit to push)
+    # Stage + commit BEFORE creating the repo
     run("git add -A", cwd=dest, env=env, check=False)
     run("git diff --cached --quiet || git commit -q -m "
         + shlex_quote("Initial commit (provisioned by provision_app.py)"),
@@ -279,7 +311,7 @@ def step_github_repo(slug: str, description: str, dest: Path,
             cwd=dest, env=env,
         )
 
-    # Push (covers both paths; idempotent — "everything up-to-date" is fine)
+    # Push (covers both paths)
     branch = run("git branch --show-current", cwd=dest, env=env).stdout.strip() \
         or "main"
     push = run(
@@ -307,35 +339,98 @@ def shlex_quote(s: str) -> str:
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
-# ─── Step 4: Vercel deploy ───────────────────────────────────────────────────
-def step_vercel_deploy(slug: str, dest: Path, vercel_token: str) -> str:
-    """Link Vercel project, deploy to prod, disable Vercel Authentication.
-
-    Returns the production deployment URL.
+# ─── Step 4: Neon database (schema + tables) ─────────────────────────────────
+def step_neon_database(slug: str, neon_conn: str) -> tuple:
+    """Create a dedicated schema + auth tables in the Neon database.
+    Returns (schema_name, database_url_without_schema_param).
     """
-    log(f"\n▲  Step 4: Vercel deploy → {slug}")
+    schema = slug_to_schema(slug)
+    log(f"\n🗄️  Step 4: Neon database → schema={schema}, tables in public")
 
-    env = {"VERCEL_TOKEN": vercel_token}
-
-    # 4a. Link (creates project if it doesn't exist)
-    log("   🔗 Linking project …")
-    link = run(
-        f"vercel link --yes --token {vercel_token} --cwd {dest}",
-        cwd=dest, env=env, check=False, timeout=120,
+    # psycopg2 lives in the gsd-hub venv
+    py_code = (
+        "import os, psycopg2\n"
+        "from psycopg2 import sql\n"
+        "\n"
+        "conn = psycopg2.connect(os.environ['NEON_CONN'])\n"
+        "conn.autocommit = True\n"
+        "cur = conn.cursor()\n"
+        "schema = os.environ['NEON_SCHEMA']\n"
+        "\n"
+        "# Create dedicated schema (for future use / organization)\n"
+        "cur.execute(sql.SQL('CREATE SCHEMA IF NOT EXISTS {}')\n"
+        ".format(sql.Identifier(schema)))\n"
+        "\n"
+        "# Create auth tables in public (Neon HTTP driver needs public)\n"
+        "tables_sql = '''" + AUTH_TABLES_SQL.replace("\\", "\\\\") + "'''\n"
+        "for stmt in tables_sql.strip().split(';'):\n"
+        "    stmt = stmt.strip()\n"
+        "    if stmt and not stmt.startswith('--'):\n"
+        "        cur.execute(stmt)\n"
+        "\n"
+        "# Verify tables exist\n"
+        "cur.execute(\"\"\"SELECT table_name FROM information_schema.tables\n"
+        "WHERE table_schema = 'public' AND table_name IN\n"
+        "('users','accounts','sessions','verification_tokens')\n"
+        "ORDER BY table_name\"\"\")\n"
+        "tables = [r[0] for r in cur.fetchall()]\n"
+        "print('TABLES_OK:' + ','.join(tables))\n"
+        "\n"
+        "cur.close()\n"
+        "conn.close()\n"
     )
-    if link.returncode != 0:
-        # Retry with explicit project name
-        log(f"   ℹ  link retry with --project {slug}")
-        run(
-            f"vercel link --yes --token {vercel_token} --project {slug} "
-            f"--cwd {dest}",
-            cwd=dest, env=env, timeout=120,
+    env = {"NEON_CONN": neon_conn, "NEON_SCHEMA": schema}
+    r = run_py(py_code, env=env, check=False)
+    if r.returncode != 0 or "TABLES_OK" not in r.stdout:
+        raise StepError(
+            f"Neon database setup failed for '{schema}'\n"
+            f"  stdout: {r.stdout[-500:]}\n  stderr: {r.stderr[-500:]}"
         )
 
-    # Read project.json to get project ID + org ID
+    tables_found = r.stdout.split("TABLES_OK:")[1].strip()
+    log(f"   ✅ Schema '{schema}' created")
+    log(f"   ✅ Auth tables in public: {tables_found}")
+
+    # DATABASE_URL without ?schema= (Neon HTTP driver doesn't support it)
+    # Strip any existing ?schema= param, keep sslmode=require
+    database_url = re.sub(r'&?schema=[^&]+', '', neon_conn)
+    if "?" not in database_url:
+        database_url += "?sslmode=require"
+    elif "sslmode" not in database_url:
+        database_url += "&sslmode=require"
+
+    log(f"   ✅ DATABASE_URL ready (no ?schema=, tables in public)")
+    return schema, database_url
+
+
+# ─── Step 5: Vercel env vars ─────────────────────────────────────────────────
+def step_vercel_env_vars(dest: Path, vercel_token: str,
+                         database_url: str, auth_secret: str) -> tuple:
+    """Set DATABASE_URL and AUTH_SECRET as env vars on the Vercel project.
+    Returns (project_id, org_id).
+    """
+    log(f"\n🔑 Step 5: Vercel env vars")
+
+    # Read project.json from the .vercel dir (created by `vercel link`)
     proj_json_path = dest / ".vercel" / "project.json"
     project_id = None
     org_id = None
+
+    # If not linked yet, link first
+    if not proj_json_path.exists():
+        log("   🔗 Linking project to Vercel …")
+        slug = dest.name
+        link = run(
+            f"vercel link --yes --token {vercel_token} --cwd {dest}",
+            cwd=dest, env={"VERCEL_TOKEN": vercel_token}, check=False, timeout=120,
+        )
+        if link.returncode != 0:
+            run(
+                f"vercel link --yes --token {vercel_token} --project {slug} "
+                f"--cwd {dest}",
+                cwd=dest, env={"VERCEL_TOKEN": vercel_token}, timeout=120,
+            )
+
     if proj_json_path.exists():
         try:
             pj = json.loads(proj_json_path.read_text())
@@ -345,16 +440,59 @@ def step_vercel_deploy(slug: str, dest: Path, vercel_token: str) -> str:
             pass
 
     if not project_id:
-        # Fallback: look up via API
-        log("   ℹ  project.json missing project ID — looking up via API")
-        pr = vercel_api("GET", f"/v9/projects/{slug}", vercel_token,
-                        team_id=org_id)
-        project_id = pr.get("id")
-        org_id = org_id or pr.get("accountId")
+        raise StepError("Could not determine Vercel project ID after linking")
 
     log(f"   📋 Project ID: {project_id}  Org: {org_id}")
 
-    # 4b. Deploy to production
+    # Set env vars via Vercel API
+    base = f"https://api.vercel.com/v10/projects/{project_id}"
+    headers = {"Authorization": f"Bearer {vercel_token}"}
+    create_url = f"{base}/env?teamId={org_id}" if org_id else f"{base}/env"
+
+    for key, value in [("DATABASE_URL", database_url), ("AUTH_SECRET", auth_secret)]:
+        # Check if env var already exists, delete if so
+        list_req = urllib.request.Request(create_url, headers=headers)
+        try:
+            with urllib.request.urlopen(list_req, timeout=30) as resp:
+                existing = json.loads(resp.read().decode()).get("envs", [])
+            for e in existing:
+                if e["key"] == key:
+                    del_url = f"{base}/env/{e['id']}?teamId={org_id}" if org_id else f"{base}/env/{e['id']}"
+                    del_req = urllib.request.Request(del_url, method="DELETE", headers=headers)
+                    with urllib.request.urlopen(del_req, timeout=30):
+                        pass
+                    log(f"   🗑️  Deleted existing {key}")
+        except Exception:
+            pass  # Ignore list/delete errors, just create
+
+        # Create the env var
+        body = json.dumps({
+            "key": key,
+            "value": value,
+            "type": "plain",
+            "target": ["production", "preview", "development"],
+        }).encode()
+        create_req = urllib.request.Request(create_url, data=body, method="POST",
+            headers={**headers, "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(create_req, timeout=30):
+                log(f"   ✅ Set {key}")
+        except urllib.error.HTTPError as e:
+            err = e.read().decode()[:200]
+            raise StepError(f"Failed to set {key}: HTTP {e.code} — {err}")
+
+    return project_id, org_id
+
+
+# ─── Step 6: Vercel deploy ───────────────────────────────────────────────────
+def step_vercel_deploy(slug: str, dest: Path, vercel_token: str) -> str:
+    """Deploy to production. Env vars are already set from Step 5.
+    Returns the production deployment URL.
+    """
+    log(f"\n▲  Step 6: Vercel deploy → {slug}")
+
+    env = {"VERCEL_TOKEN": vercel_token}
+
     log("   🚀 Deploying to production …")
     deploy = run(
         f"vercel deploy --prod --yes --token {vercel_token} --cwd {dest}",
@@ -368,38 +506,23 @@ def step_vercel_deploy(slug: str, dest: Path, vercel_token: str) -> str:
 
     vercel_url = parse_vercel_url(deploy.stdout)
     if not vercel_url:
-        # Fallback: query the API for the latest production deployment
-        log("   ℹ  URL not in stdout — querying API …")
-        deps = vercel_api(
-            "GET", f"/v6/deployments", vercel_token, team_id=org_id,
-        )
-        # add projectId filter via path
-        try:
-            deps = vercel_api(
-                "GET", f"/v6/deployments?projectId={project_id}&limit=1&target=production",
-                vercel_token, team_id=org_id,
-            )
-            url = deps.get("deployments", [{}])[0].get("url")
-            if url:
-                vercel_url = f"https://{url}"
-        except (IndexError, KeyError):
-            pass
-
-    if not vercel_url:
-        # Last-resort fallback: construct the standard production URL
         vercel_url = f"https://{slug}.vercel.app"
         log(f"   ⚠  Could not parse deployment URL — using default: {vercel_url}")
 
     log(f"   ✅ Deployed: {vercel_url}")
 
-    # 4c. Disable Vercel Authentication (SSO protection) for the project
-    if project_id:
-        log("   🔓 Disabling Vercel Authentication …")
+    # Disable Vercel Authentication (SSO protection)
+    proj_json_path = dest / ".vercel" / "project.json"
+    if proj_json_path.exists():
         try:
-            vercel_api("PATCH", f"/v9/projects/{project_id}", vercel_token,
-                       body={"ssoProtection": None}, team_id=org_id)
-            log("   ✅ SSO / Vercel Authentication disabled")
-        except StepError as e:
+            pj = json.loads(proj_json_path.read_text())
+            project_id = pj.get("projectId")
+            org_id = pj.get("orgId")
+            if project_id:
+                vercel_api("PATCH", f"/v9/projects/{project_id}", vercel_token,
+                           body={"ssoProtection": None}, team_id=org_id)
+                log("   ✅ SSO / Vercel Authentication disabled")
+        except (json.JSONDecodeError, OSError, StepError) as e:
             log(f"   ⚠  Could not disable SSO protection: {e}")
 
     return vercel_url
@@ -407,82 +530,26 @@ def step_vercel_deploy(slug: str, dest: Path, vercel_token: str) -> str:
 
 def parse_vercel_url(stdout: str) -> str:
     """Extract the production deployment URL from vercel deploy stdout."""
-    # Prefer the line that says "Production:"
     for line in stdout.splitlines():
         low = line.lower()
         if "production" in low and "vercel.app" in low:
             m = re.search(r"https://\S+\.vercel\.app", line)
             if m:
                 return m.group(0)
-    # Fallback: any vercel.app URL (last one wins — usually the deploy URL)
     urls = re.findall(r"https://\S+\.vercel\.app", stdout)
     if urls:
         return urls[-1]
     return None
 
 
-# ─── Step 5: Neon database schema ────────────────────────────────────────────
-def step_neon_schema(slug: str, neon_conn: str) -> tuple:
-    """Create a dedicated schema in the existing Neon database.
-
-    Returns (schema_name, database_url_with_schema).
-    """
-    schema = slug_to_schema(slug)
-    log(f"\n🗄️  Step 5: Neon schema → {schema}")
-
-    # psycopg2 lives in the gsd-hub venv; pass creds via env vars (no shell
-    # escaping issues).  Uses psycopg2.sql.Identifier for safe schema quoting.
-    py_code = (
-        "import os, psycopg2\n"
-        "from psycopg2 import sql\n"
-        "\n"
-        "conn = psycopg2.connect(os.environ['NEON_CONN'])\n"
-        "conn.autocommit = True\n"
-        "cur = conn.cursor()\n"
-        "schema = os.environ['NEON_SCHEMA']\n"
-        "\n"
-        "cur.execute(sql.SQL('CREATE SCHEMA IF NOT EXISTS {}')"
-        ".format(sql.Identifier(schema)))\n"
-        "conn.commit()\n"
-        "\n"
-        "cur.execute(\"SELECT schema_name FROM information_schema.schemata"
-        " WHERE schema_name = %s\", (schema,))\n"
-        "ok = cur.fetchone() is not None\n"
-        "print('SCHEMA_OK:' + schema if ok else 'SCHEMA_FAIL')\n"
-        "\n"
-        "cur.close()\n"
-        "conn.close()\n"
-    )
-    env = {"NEON_CONN": neon_conn, "NEON_SCHEMA": schema}
-    r = run_py(py_code, env=env, check=False)
-    if r.returncode != 0 or "SCHEMA_OK" not in r.stdout:
-        raise StepError(
-            f"Neon schema creation failed for '{schema}'\n"
-            f"  stdout: {r.stdout[-500:]}\n  stderr: {r.stderr[-500:]}"
-        )
-
-    log(f"   ✅ Schema '{schema}' ready")
-
-    # Build the DATABASE_URL with the schema appended (Prisma-style ?schema=)
-    if "?" in neon_conn:
-        database_url = f"{neon_conn}&schema={schema}"
-    else:
-        database_url = f"{neon_conn}?schema={schema}"
-
-    log(f"   ✅ DATABASE_URL constructed (schema={schema})")
-    return schema, database_url
-
-
-# ─── Step 6: Output ──────────────────────────────────────────────────────────
+# ─── Step 7: Output ──────────────────────────────────────────────────────────
 def step_output(summary: dict):
     """Print JSON summary and append to provisioned_apps.json."""
-    # Pretty JSON to stdout
     log("\n" + "=" * 60)
     log("✅ PROVISIONING COMPLETE")
     log("=" * 60)
     print(json.dumps(summary, indent=2))
 
-    # Append to data file
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     existing = []
     if DATA_FILE.exists():
@@ -503,7 +570,7 @@ def step_output(summary: dict):
 def main():
     parser = argparse.ArgumentParser(
         description="Provision a new web app end-to-end "
-                    "(template → GitHub → Vercel → Neon).",
+                    "(template → GitHub → Neon → Vercel).",
     )
     parser.add_argument("--name", required=True,
                         help="App display name (e.g. 'Price Tracker')")
@@ -537,15 +604,32 @@ def main():
     except StepError as e:
         fail("credentials", str(e))
 
+    # Generate AUTH_SECRET for NextAuth
+    auth_secret = secrets.token_urlsafe(32)
+
     # ── Execute steps ─────────────────────────────────────────────────────
     try:
+        # 1. Copy template
         dest = step_copy_template(template_dir, slug)
+
+        # 2. Personalize
         step_personalize(app_name, slug, description, dest)
+
+        # 3. GitHub repo (uses correct email for Vercel deploy authorization)
         github_url = step_github_repo(slug, description, dest, github_token)
+
+        # 4. Neon database (schema + tables) — BEFORE deploy
+        db_schema, database_url = step_neon_database(slug, neon_conn)
+
+        # 5. Vercel env vars — BEFORE deploy so first deploy has them
+        project_id, org_id = step_vercel_env_vars(
+            dest, vercel_token, database_url, auth_secret
+        )
+
+        # 6. Vercel deploy (env vars already set, DB tables already created)
         vercel_url = step_vercel_deploy(slug, dest, vercel_token)
-        db_schema, database_url = step_neon_schema(slug, neon_conn)
+
     except StepError as e:
-        # Determine which step failed from the message context
         fail("provisioning", str(e), exc=e)
     except subprocess.TimeoutExpired as e:
         fail("provisioning", f"Command timed out: {e}", exc=e)
@@ -560,6 +644,7 @@ def main():
         "vercel_url": vercel_url,
         "database_schema": db_schema,
         "database_url": database_url,
+        "auth_secret": auth_secret,
         "status": "provisioned",
     }
     step_output(summary)

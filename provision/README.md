@@ -1,12 +1,14 @@
 # Provision Script
 
-Automatiza o setup completo de um novo app web em segundos:
+Automatiza o setup completo de um novo app web em ~2 minutos, zero intervenção manual:
 
 1. **Copia o template** Next.js + shadcn/ui
 2. **Personaliza** nome do app em todos os arquivos
-3. **Cria repo** no GitHub e faz push
-4. **Faz deploy** no Vercel (produção)
-5. **Cria schema** no Neon Postgres
+3. **Cria repo** no GitHub e faz push (email correto para Vercel)
+4. **Cria schema + tabelas** no Neon Postgres (auth tables em public)
+5. **Seta env vars** no Vercel (DATABASE_URL + AUTH_SECRET)
+6. **Faz deploy** no Vercel (produção, com tudo configurado)
+7. **Salva output** JSON + append em provisioned_apps.json
 
 ## Uso
 
@@ -19,7 +21,7 @@ python3 provision_app.py \
 
 ## Pré-requisitos
 
-- Python 3.11+
+- Python 3.11+ com psycopg2-binary
 - Node.js 22+ (nvm)
 - gh CLI autenticado
 - Vercel CLI instalado
@@ -28,7 +30,8 @@ python3 provision_app.py \
 ## Credenciais
 
 ```bash
-export GITHUB_TOKEN=ghp_...port VERCEL_TOKEN=vcp_...port NEON_CONNECTION_STRING=postgresql://...
+export GITHUB_TOKEN=ghp_...ort NEON_CONNECTION_STRING=postgresql://...
+echo "vcp_..." > /tmp/.vercel_tok
 ```
 
-Veja `docs/provision.md` para troubleshooting e configuração avançada.
+Veja `docs/provision.md` para arquitetura completa, configuração e troubleshooting.
