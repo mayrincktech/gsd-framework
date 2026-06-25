@@ -1,6 +1,6 @@
-# GSD Framework — Hermes Requirements
+# Hermes GSD Framework — Hermes Requirements
 
-O GSD Framework roda sobre o [Hermes Agent](https://hermes-agent.nousresearch.com) e depende de customizações específicas. Este documento lista todos os pré-requisitos e patches necessários.
+O Hermes GSD Framework roda sobre o [Hermes Agent](https://hermes-agent.nousresearch.com) e depende de customizações específicas. Este documento lista todos os pré-requisitos e patches necessários.
 
 ---
 

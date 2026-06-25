@@ -1,4 +1,4 @@
-# Task Format — GSD Framework
+# Task Format — Hermes GSD Framework
 
 Each task is a markdown file in `.planning/features/{feature-id}/tasks/{NN}-slug.md`.
 

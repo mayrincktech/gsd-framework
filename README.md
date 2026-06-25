@@ -1,4 +1,4 @@
-# GSD Framework
+# Hermes GSD Framework
 
 **Metodologia spec-driven para desenvolvimento de apps com IA — roda sobre o [Hermes Agent](https://hermes-agent.nousresearch.com).**
 
@@ -125,7 +125,7 @@ Setup completo em [`docs/hermes-requirements.md`](docs/hermes-requirements.md).
 ## Estrutura do repo
 
 ```
-gsd-framework/
+hermes-gsd-framework/
 ├── METHODOLOGY.md              # Pipeline completo v8 com todos os gates
 ├── roles.yaml                  # Role definitions (capabilities, not model names)
 ├── CHANGELOG.md                # Histórico de versões
@@ -164,8 +164,8 @@ gsd-framework/
 
 ```bash
 # 1. Clone o framework
-git clone https://github.com/mayrincktech/gsd-framework.git
-cd gsd-framework
+git clone https://github.com/mayrincktech/hermes-gsd-framework.git
+cd hermes-gsd-framework
 
 # 2. Configure credenciais
 export GITHUB_TOKEN=seu_github_token

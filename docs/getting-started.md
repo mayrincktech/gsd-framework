@@ -39,8 +39,8 @@ vercel login
 ## Instalação
 
 ```bash
-git clone https://github.com/mayrincktech/gsd-framework.git
-cd gsd-framework
+git clone https://github.com/mayrincktech/hermes-gsd-framework.git
+cd hermes-gsd-framework
 ```
 
 ## Configurar Credenciais

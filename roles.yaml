@@ -1,4 +1,4 @@
-# GSD Framework — Role Configuration
+# Hermes GSD Framework — Role Configuration
 # Model-agnostic: roles defined by capabilities, not model names.
 # Swap models by updating current_implementation — the framework stays the same.
 

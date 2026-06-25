@@ -43,11 +43,11 @@ GITHUB_EMAIL = "lucronaconfeitaria@gmail.com"  # Must match Vercel account email
 GITHUB_NAME = "Moises Mayrinck"
 ENV_FILE = Path.home() / ".hermes" / ".env"
 VERCEL_TOKEN_FILE = Path("/tmp/.vercel_tok")
-DATA_FILE = WORKSPACE / "gsd-framework" / "data" / "provisioned_apps.json"
+DATA_FILE = WORKSPACE / "hermes-gsd-framework" / "data" / "provisioned_apps.json"
 NVM_SOURCE = ". ~/.nvm/nvm.sh"
 DEFAULT_TEMPLATE = str(WORKSPACE / "web-app-template")
 
-Path(WORKSPACE / "gsd-framework" / "data").mkdir(parents=True, exist_ok=True)
+Path(WORKSPACE / "hermes-gsd-framework" / "data").mkdir(parents=True, exist_ok=True)
 
 # Files / dirs to strip when copying the template (avoid copying build state)
 TEMPLATE_JUNK = {".git", "node_modules", ".next", ".vercel", ".DS_Store"}
