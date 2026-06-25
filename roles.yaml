@@ -1,0 +1,68 @@
+# GSD Framework — Role Configuration
+# Model-agnostic: roles defined by capabilities, not model names.
+# Swap models by updating current_implementation — the framework stays the same.
+
+orchestrator:
+  name: "Orchestrator + UX Designer"
+  description: >
+    The brain. Researches, designs architecture and UX, plans tasks,
+    delegates code and QA, runs UX review, deploys.
+  responsibilities:
+    - research
+    - architecture
+    - ux_design
+    - ux_review
+    - planning
+    - deploy
+  capabilities:
+    visual_reasoning: true          # can evaluate UX quality
+    wireframe_generation: true       # can create wireframes
+    ux_evaluation: true              # can apply UX Score
+    code_generation: false           # NEVER writes implementation code
+  requirements:
+    strong_reasoning: true           # needs high-quality general reasoning
+    long_context: true               # needs to hold full project context
+  # Current model serving this role:
+  current_implementation: "GLM-5.2"
+
+code_executor:
+  name: "Code AI"
+  description: >
+    The hands. Writes code, writes tests, fixes bugs.
+    Follows specs exactly. Does NOT make architecture or UX decisions.
+  responsibilities:
+    - write_code
+    - write_tests
+    - fix_code
+  capabilities:
+    code_generation: true
+    test_generation: true
+    architecture_decisions: false    # does not decide architecture
+    ux_decisions: false              # does not decide UX
+  requirements:
+    fast_inference: true             # must be fast (target: <5min per task)
+    supports_delegation: true        # must work via delegate_task
+    code_quality: high               # must produce production-quality code
+  # Current model serving this role:
+  current_implementation: "DeepSeek V4 Flash/Pro via OpenCode Go"
+
+qa_verifier:
+  name: "QA AI"
+  description: >
+    The eyes. Reviews all modified code, checks security, type safety,
+    contract compliance. MUST be a different model family from the executor.
+  responsibilities:
+    - code_review
+    - security_check
+    - contract_check
+    - type_safety_check
+    - regression_check
+  capabilities:
+    code_review: true
+    security_analysis: true
+    type_safety_check: true
+  requirements:
+    different_model_family: true     # MANDATORY: same model self-reviewing is a known failure pattern
+    code_quality: high               # must understand code deeply
+  # Current model serving this role:
+  current_implementation: "Kimi K2.7 Code via OpenCode Go"

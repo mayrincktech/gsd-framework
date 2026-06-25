@@ -1,21 +1,64 @@
-# GSD Methodology v7
+# GSD Methodology v8
 
 **Get Shit Done** — um sistema production-ready para desenvolvimento autônomo com IA.
+
+## Role System (Model-Agnostic)
+
+O framework define papéis por **capabilities**, não por modelo. Modelos são trocáveis sem mudar o framework.
+
+```yaml
+# roles.yaml — configuração de roles
+orchestrator:
+  name: "Orchestrator + UX Designer"
+  responsibilities: [research, architecture, ux_design, ux_review, planning, deploy]
+  capabilities:
+    visual_reasoning: true        # pode avaliar UX
+    wireframe_generation: true     # pode criar wireframes
+    ux_evaluation: true            # pode aplicar UX Score
+    code_generation: false         # NÃO codifica
+  current_implementation: "GLM-5.2"
+
+code_executor:
+  name: "Code AI"
+  responsibilities: [write_code, write_tests, fix_code]
+  capabilities:
+    code_generation: true
+    test_generation: true
+    architecture_decisions: false  # não decide arquitetura
+    ux_decisions: false            # não decide UX
+  requirements:
+    fast_inference: true           # precisa ser rápido
+    supports_delegation: true      # precisa funcionar via delegate_task
+  current_implementation: "DeepSeek V4 Flash/Pro via OpenCode Go"
+
+qa_verifier:
+  name: "QA AI"
+  responsibilities: [code_review, security_check, contract_check]
+  capabilities:
+    code_review: true
+    security_analysis: true
+    type_safety_check: true
+  requirements:
+    different_model_family: true   # OBRIGATÓRIO: modelo diferente do executor
+  current_implementation: "Kimi K2.7 Code via OpenCode Go"
+```
+
+**Para trocar um modelo:** basta que o novo atenda as `capabilities` e `requirements` do role. O framework não muda.
 
 ## Arquitetura
 
 ```
-Orchestrator AI (ex: GLM-5.2)
+Orchestrator AI (role: orchestrator)
   │  — research, architecture, UX design, planning, deploy
   │
   ├── RESEARCH     → valida demanda antes de engenharia
   ├── ARCHITECTURE → trava stack antes de codar
   ├── UX DESIGN    → trava wireframes + design system antes de UI
   ├── PLANNING     → decomposição em tasks atômicas
-  ├── CODING       → delegate to Code AI (ex: DeepSeek V4 Pro)
+  ├── CODING       → delegate to Code AI (role: code_executor)
   ├── UX REVIEW    → score objetivo (min 42/60)
   ├── TESTING      → build, lint, typecheck, tests
-  ├── QA           → delegate to QA AI (ex: Kimi K2.7 — modelo DIFERENTE)
+  ├── QA           → delegate to QA AI (role: qa_verifier — modelo DIFERENTE)
   └── DEPLOY       → produção
 ```
 
@@ -73,7 +116,7 @@ DONE (Definition of Done checklist)
 
 ## Roles & Responsabilidades
 
-### Orchestrator AI (GLM-5.2)
+### Orchestrator AI (role: orchestrator)
 
 - Define arquitetura (ARCHITECTURE.md)
 - Define UX design (DESIGN-SYSTEM.md, WIREFRAMES.md)
@@ -85,7 +128,7 @@ DONE (Definition of Done checklist)
 - Verifica testes
 - Faz deploy
 
-### Code AI (DeepSeek V4 Pro)
+### Code AI (role: code_executor)
 
 - Escreve código via delegation
 - Segue instruções exatamente
@@ -93,10 +136,10 @@ DONE (Definition of Done checklist)
 - NÃO toma decisões arquiteturais ou de UX
 - Retorna output estruturado
 
-### QA AI (Kimi K2.7)
+### QA AI (role: qa_verifier)
 
 - Revisa TODOS os arquivos modificados
-- Modelo diferente do executor — pega o que DeepSeek perde
+- Modelo diferente do executor — pega o que Code AI perde
 - Roda build checks, security checks, type safety, contract compliance
 - Retorna report categorizado: CRITICAL / HIGH / MEDIUM / LOW
 
@@ -104,13 +147,13 @@ DONE (Definition of Done checklist)
 
 ## Regras de Delegação
 
-| Task | Quem executa |
+| Task | Role que executa |
 |---|---|
-| Code tasks | Code AI (DeepSeek V4 Pro) |
-| Test tasks | Code AI (DeepSeek V4 Pro) |
-| QA tasks | QA AI (Kimi K2.7) — modelo DIFERENTE |
-| UX Design/Review | Orchestrator (sem delegação) |
-| Research/Planning | Orchestrator (sem delegação) |
+| Code tasks | code_executor |
+| Test tasks | code_executor |
+| QA tasks | qa_verifier (modelo DIFERENTE) |
+| UX Design/Review | orchestrator (sem delegação) |
+| Research/Planning | orchestrator (sem delegação) |
 
 **Não delegar quando:**
 - Debugging
@@ -398,16 +441,41 @@ Desktop (≥768px) — adaptação:
 
 ---
 
-## Minimal vs Full Mode
+## Modos de Operação
 
-### Minimal
-- Sem `.planning/`
-- Execução direta
-- Usar para: bugfix, config change, single-file edits, pure backend tasks
+### Fast Mode
+Para tarefas simples onde o pipeline completo seria disproportional.
 
-### Full
-- Lifecycle completo com todos os gates (incluindo UX)
-- Usar para: new features, multi-file changes, new projects, any UI work
+**Indicado para:** Landing pages, CRUDs simples, MVPs, ferramentas internas, dashboards básicos.
+
+```
+Idea → Light Spec → Architecture → Dev → QA → Deploy
+```
+
+- Sem Research Gate, Business Validation, UX Design Gate separados
+- UX Reviewinline (Orchestrator avalia rapidamente)
+- QA obrigatório (não pula)
+- `.planning/` minimal (só STATE.md)
+
+### Enterprise Mode (Full)
+Para produtos comerciais, SaaS, sistemas complexos.
+
+```
+RESEARCH → BUSINESS → ARCHITECTURE → UX DESIGN → PLAN → EXECUTE → UX REVIEW → TEST → VERIFY → DEPLOY
+```
+
+- Todos os gates obrigatórios
+- `.planning/` completo com features/, design system, wireframes
+
+### Como escolher
+
+| Critério | Fast | Enterprise |
+|---|---|---|
+| UI complexa | Não | Sim |
+| Multi-tenant | Não | Sim |
+| Novo produto | Não | Sim |
+| Tempo alvo | 5-10 min | 20-45 min |
+| Feature nova em app existente | Depende | Depende |
 
 ---
 
@@ -455,11 +523,11 @@ Um app não pode ter duas features simultâneas em `active_feature`. Motivo: con
 ### Fluxo
 
 ```
-queued_features[]
-    ↓ (feature_runner.py ou comando Hermes)
-active_feature
+Kanban: To Do
+    ↓ (Orchestrator inicia feature)
+Kanban: In Progress
     ↓ (pipeline completo: RESEARCH → DEPLOY)
-deployed_features[]
+Kanban: Done → deployed_features[]
 ```
 
 ### Cada feature reinicia o pipeline
@@ -476,11 +544,11 @@ Cada feature deployada incrementa a versão do app (minor): `1.0.0` → `1.1.0`.
 
 ### Regras obrigatórias
 
-| Role | Quem | Modelo | Como |
-|---|---|---|---|
-| Orchestrator | GLM-5.2 (ou superior) | Provider principal | Direto |
-| Code AI | DeepSeek V4 Flash/Pro | `custom:opencode-go` | `delegate_task(model: "deepseek-v4-flash")` |
-| QA AI | Kimi K2.7 Code | `custom:opencode-go` | `delegate_task(model: "kimi-k2.7-code")` |
+| Role | Config | Como |
+|---|---|---|
+| Orchestrator | Provider principal | Direto (não delega) |
+| Code AI | `delegate_task` com role code_executor | Provider configurável |
+| QA AI | `delegate_task` com role qa_verifier | **Modelo DIFERENTE do Code AI** |
 
 ### Proibições
 
@@ -512,6 +580,33 @@ Ver `schemas/task-format.md` para template completo.
 - Máx 500 linhas por task
 - Dependencies devem estar completed antes de iniciar
 - Status sincroniza com o Kanban board após cada mudança
+
+---
+
+## Execution Metrics (Acompanhar de perto)
+
+O sucesso do framework é medido por dados reais, não por README bonito.
+
+### Métricas por projeto
+
+| Métrica | Meta | Como medir |
+|---|---|---|
+| Tempo: Idea → Deploy | Fast: <10min / Enterprise: <45min | Timestamp em STATE.md |
+| Rework rate | <30% | Tasks que voltaram para EXECUTE / total |
+| UX Score médio | ≥ 48/60 | Média de UX-REVIEW.md |
+| QA: Critical/High | 0 ao deployar | VERIFICATION.md |
+| Builds sem erro | >90% primeira tentativa | TEST-RESULTS.md |
+
+### Métricas globais do framework
+
+| Métrica | Meta | Como medir |
+|---|---|---|
+| Projetos completados | >10 para validar | Contagem de apps provisionados |
+| Consistência visual entre projetos | Subjetivo, melhorando | Comparar screenshots |
+| Retrabalho diminuindo ao longo do tempo | Tendência decrescente | Rework rate por mês |
+| UX melhor que Claude/Cursor direto | Validação subjetiva | Comparação lado a lado |
+
+**Sem dados, o framework é só teoria.** Cada projeto deve registrar essas métricas em STATE.md.
 
 ---
 

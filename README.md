@@ -8,6 +8,23 @@ O GSD (Get Shit Done) é um framework que orquestra múltiplos agentes de IA com
 
 ## Como funciona
 
+Roles definidos por **capabilities**, não por modelo. Trocar um modelo não muda o framework.
+
+```yaml
+# Ver roles.yaml para configuração completa
+orchestrator:    # research, architecture, UX design, planning, deploy
+  code_generation: false
+  current: "GLM-5.2"
+
+code_executor:   # writes code, writes tests
+  requirements: [fast_inference]
+  current: "DeepSeek V4 Flash/Pro"
+
+qa_verifier:     # reviews code, security, contracts
+  requirements: [different_model_family: true]  # MANDATORY
+  current: "Kimi K2.7 Code"
+```
+
 ```
 GLM-5.2 (Orchestrator + UX Designer)
   │
@@ -55,13 +72,13 @@ Após EXECUTE, toda UI é avaliada em 6 critérios objetivos (0-10 cada):
 **Mínimo 42/60 para aprovar.** Abaixo disso, volta para o executor com feedback específico.
 
 ### Multi-Model Delegation
-IA diferente para papéis diferentes. Mesmo modelo se avaliando é um padrão de falha conhecido.
+IA diferente para papéis diferentes. Mesmo modelo se avaliando é um padrão de falha conhecido. Roles são definidos por capabilities em [`roles.yaml`](roles.yaml) — trocar de modelo não muda o framework.
 
-| Modelo | Papel | Por quê |
+| Role | O que faz | Modelo atual |
 |---|---|---|
-| GLM-5.2 | Orchestrator + UX | Raciocínio geral, design, arquitetura |
-| DeepSeek V4 Flash/Pro | Code Executor | Especialista em código, rápido |
-| Kimi K2.7 Code | QA Verifier | Modelo diferente — pega o que DeepSeek missed |
+| orchestrator | Raciocínio, design, arquitetura, UX | GLM-5.2 |
+| code_executor | Escreve código, rápido | DeepSeek V4 Flash/Pro |
+| qa_verifier | Revisa código (modelo diferente) | Kimi K2.7 Code |
 
 ### Provisioning Automático
 Um comando provisiona tudo:
@@ -92,7 +109,7 @@ Um comando provisiona tudo:
 ```
 gsd-framework/
 ├── METHODOLOGY.md              # Pipeline completo v8 com todos os gates
-├── README.md                   # Este arquivo
+├── roles.yaml                  # Role definitions (capabilities, not model names)
 ├── CHANGELOG.md                # Histórico de versões
 ├── docs/
 │   ├── pipeline.md             # Detalhamento de cada fase
@@ -154,11 +171,23 @@ O script executa automaticamente em ~2 minutos:
 
 ## Modos de operação
 
-### Full Mode (padrão)
-Lifecycle completo com todos os gates. Para novos produtos, features com UI, projetos multi-arquivo.
+### Fast Mode
+Para tarefas simples. Tempo alvo: **5-10 min**.
 
-### Minimal Mode
-Execução direta sem `.planning/`. Para bugfix, config change, single-file edit, tasks puramente backend.
+```
+Idea → Light Spec → Architecture → Dev → QA → Deploy
+```
+
+Landing pages, CRUDs simples, MVPs, ferramentas internas.
+
+### Enterprise Mode (Full)
+Para produtos comerciais. Tempo alvo: **20-45 min**.
+
+```
+RESEARCH → ARCHITECTURE → UX DESIGN → PLAN → EXECUTE → UX REVIEW → TEST → VERIFY → DEPLOY
+```
+
+SaaS, multi-tenant, produtos complexos.
 
 ---
 
@@ -197,6 +226,22 @@ Token com permissão para criar projects, setar env vars e desabilitar SSO prote
 Cada app recebe schema isolado + tabelas de auth. Connection string usa hostname pooler (compatível com `@neondatabase/serverless`).
 
 Veja [`docs/provision.md`](docs/provision.md) para detalhes e troubleshooting.
+
+---
+
+## Execution Metrics
+
+O sucesso do framework é medido por dados, não por README bonito.
+
+| Métrica | Meta |
+|---|---|
+| Tempo: Idea → Deploy | Fast <10min, Enterprise <45min |
+| Rework rate | <30% |
+| UX Score médio | ≥48/60 |
+| QA Critical/High ao deployar | 0 |
+| Builds sem erro (1a tentativa) | >90% |
+
+**Sem projetos reais completados, o framework é só teoria.** Cada app provisionado registra métricas em STATE.md.
 
 ---
 
