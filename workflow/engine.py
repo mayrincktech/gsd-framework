@@ -530,6 +530,23 @@ class WorkflowEngine:
                 "current_phase": self.state.current_phase,
             }
 
+        # Deploy-command guard: block deploy commands unless in deploy phase
+        if tool_name == "terminal" and self.state.current_phase != "deploy":
+            cmd = (tool_args or {}).get("command", "")
+            is_deploy = any(p in cmd for p in [
+                "vercel deploy", "vercel --prod", "git push heroku",
+                "fly deploy", "railway up",
+            ])
+            if is_deploy:
+                return {
+                    "allowed": False,
+                    "reason": (
+                        f"Deploy commands are blocked in phase '{self.state.current_phase}'. "
+                        f"Deploy is only allowed in the 'deploy' phase."
+                    ),
+                    "current_phase": self.state.current_phase,
+                }
+
         return {"allowed": True, "current_phase": self.state.current_phase}
 
     # ── Audit Log ─────────────────────────────────────────────────────

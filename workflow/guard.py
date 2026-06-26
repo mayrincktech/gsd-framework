@@ -147,17 +147,16 @@ def check_before_terminal(command: str = "") -> dict:
     """
     Pre-flight check before terminal().
 
-    Blocks deploy commands (vercel, git push, etc.) unless in deploy phase.
+    Blocks deploy commands (vercel, git push heroku, etc.) unless in deploy phase.
     """
-    # Only check for deploy-sensitive commands
-    deploy_patterns = ["vercel deploy", "vercel --prod", "git push heroku"]
+    deploy_patterns = [
+        "vercel deploy", "vercel --prod", "git push heroku",
+        "fly deploy", "railway up",
+    ]
     is_deploy_cmd = any(p in command for p in deploy_patterns)
 
-    if is_deploy_cmd:
-        return check_tool_permission("terminal", {"command": command, "deploy": True})
-
-    # Non-deploy terminal commands — check general phase permission
-    return check_tool_permission("terminal")
+    # Always pass command in args so engine can inspect for deploy patterns
+    return check_tool_permission("terminal", {"command": command, "deploy": is_deploy_cmd})
 
 
 def advance_phase() -> dict:
