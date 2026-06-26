@@ -1,0 +1,210 @@
+# GSD Workflow Definition v1.0
+#
+# This YAML is the GSD methodology encoded as a machine-enforceable workflow.
+# The engine (workflow/engine.py) reads this and enforces it.
+#
+# The engine is generic — it knows nothing about GSD. This file IS the GSD.
+# To create a different methodology, create a different YAML.
+
+workflow: gsd
+mode: enterprise  # fast | enterprise
+version: "1.0"
+
+# Artifacts are relative to project_dir (usually .planning/)
+phases:
+  # ── 0. RESEARCH GATE ──────────────────────────────────────────────
+  - id: research
+    label: "Research Gate"
+    produces:
+      - RESEARCH.md
+    depends_on: []
+    gate:
+      type: artifact_check
+      requires:
+        - RESEARCH.md
+    allowed_tools: []        # all tools allowed (research needs broad access)
+    blocked_tools:
+      - delegate_task         # no delegation during research
+    rollback:
+      target: research
+      invalidate: [RESEARCH.md]
+
+  # ── 1. ARCHITECTURE GATE ──────────────────────────────────────────
+  - id: architecture
+    label: "Architecture Gate"
+    produces:
+      - ARCHITECTURE.md
+    depends_on: [research]
+    gate:
+      type: composite
+      requires:
+        - ARCHITECTURE.md
+    blocked_tools:
+      - delegate_task
+    rollback:
+      target: architecture
+      invalidate: [ARCHITECTURE.md]
+      # If architecture itself was wrong, everything downstream is void
+      conditional:
+        - trigger: "architecture_drift"
+          target: architecture
+          invalidate_all_downstream: true
+
+  # ── 2. UX DESIGN GATE ─────────────────────────────────────────────
+  - id: ux_design
+    label: "UX Design Gate"
+    produces:
+      - DESIGN-SYSTEM.md
+      - WIREFRAMES.md
+    depends_on: [architecture]
+    gate:
+      type: composite
+      requires:
+        - DESIGN-SYSTEM.md
+        - WIREFRAMES.md
+    blocked_tools:
+      - delegate_task
+    rollback:
+      target: ux_design
+      invalidate: [DESIGN-SYSTEM.md, WIREFRAMES.md]
+
+  # ── 3. PLAN ───────────────────────────────────────────────────────
+  - id: plan
+    label: "Planning"
+    produces:
+      - PLAN.md
+    depends_on: [ux_design]
+    gate:
+      type: composite
+      requires:
+        - PLAN.md
+      kanban_cards: 1         # at least 1 Kanban card must exist
+    blocked_tools:
+      - delegate_task         # still planning — no code yet
+    rollback:
+      target: plan
+      invalidate: [PLAN.md]
+
+  # ── 4. EXECUTE ────────────────────────────────────────────────────
+  - id: execute
+    label: "Execute (Code)"
+    produces:
+      - CODE                  # abstract — represents the codebase diff
+    depends_on: [plan]
+    gate:
+      type: artifact_check
+      requires: []            # code doesn't produce a doc, verification is external
+    # This is the ONLY phase where delegate_task is allowed
+    allowed_tools:
+      - delegate_task
+      - terminal
+      - write_file
+      - patch
+      - read_file
+      - search_files
+      - browser_navigate
+      - browser_snapshot
+      - browser_click
+      - browser_type
+      - browser_press
+      - browser_scroll
+      - browser_vision
+      - browser_get_images
+      - browser_console
+      - todo
+      - web_search
+      - web_extract
+    rollback:
+      target: execute
+      invalidate: []
+
+  # ── 5. UX REVIEW ──────────────────────────────────────────────────
+  - id: ux_review
+    label: "UX Review"
+    produces:
+      - UX-REVIEW.md
+    depends_on: [execute]
+    gate:
+      type: score_check
+      requires:
+        - UX-REVIEW.md
+      min_score: 42           # out of 60
+    blocked_tools:
+      - delegate_task         # review is done by orchestrator, not delegated
+    rollback:
+      target: execute
+      invalidate: [UX-REVIEW.md]
+      preserve: [PLAN.md, DESIGN-SYSTEM.md, WIREFRAMES.md]
+
+  # ── 6. TEST ───────────────────────────────────────────────────────
+  - id: test
+    label: "Test (Build + Lint + Typecheck + Unit)"
+    produces:
+      - TEST-RESULTS.md
+    depends_on: [execute]
+    gate:
+      type: command_check
+      requires:
+        - TEST-RESULTS.md
+      commands:
+        - "npm run build"
+        - "npm run lint"
+        - "npx tsc --noEmit"
+      all_must_pass: true
+    blocked_tools:
+      - delegate_task
+    rollback:
+      target: execute
+      invalidate: [TEST-RESULTS.md]
+      preserve: [PLAN.md, DESIGN-SYSTEM.md, WIREFRAMES.md, UX-REVIEW.md]
+
+  # ── 7. VERIFY (QA) ────────────────────────────────────────────────
+  - id: verify
+    label: "QA Review"
+    produces:
+      - VERIFICATION.md
+    depends_on: [execute, test]
+    gate:
+      type: artifact_check
+      requires:
+        - VERIFICATION.md
+    # QA IS delegated — but to a DIFFERENT model (qa_verifier role)
+    allowed_tools:
+      - delegate_task
+    rollback:
+      target: execute
+      invalidate: [VERIFICATION.md]
+      preserve: [PLAN.md, DESIGN-SYSTEM.md, WIREFRAMES.md, UX-REVIEW.md, TEST-RESULTS.md]
+      # Deep rollback if architecture is fundamentally wrong
+      conditional:
+        - trigger: "architecture_drift"
+          target: architecture
+          invalidate_all_downstream: true
+        - trigger: "security_critical"
+          target: execute
+          invalidate: [VERIFICATION.md]
+
+  # ── 8. DEPLOY ─────────────────────────────────────────────────────
+  - id: deploy
+    label: "Deploy"
+    produces:
+      - DEPLOYMENT.md
+    depends_on: [verify]
+    gate:
+      type: composite
+      requires:
+        - DEPLOYMENT.md
+    allowed_tools:
+      - terminal              # deploy commands (vercel, git push, etc.)
+    rollback:
+      target: verify
+      invalidate: [DEPLOYMENT.md]
+
+  # ── 9. DONE ───────────────────────────────────────────────────────
+  - id: done
+    label: "Complete"
+    produces: []
+    depends_on: [deploy]
+    gate:
+      type: artifact_check
+      requires: []
